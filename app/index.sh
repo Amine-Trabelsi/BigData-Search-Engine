@@ -8,7 +8,7 @@ OUTPUT=/tmp/index/output1
 # Clean previous output if exists
 hdfs dfs -rm -r -f $OUTPUT
 
-# Run MapReduce
+
 hadoop jar $HADOOP_HOME/share/hadoop/tools/lib/hadoop-streaming*.jar \
     -input $INPUT \
     -output $OUTPUT \

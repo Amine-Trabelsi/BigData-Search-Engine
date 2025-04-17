@@ -5,9 +5,11 @@ service ssh restart
 # Starting the services
 bash start-services.sh
 
+ln -s /usr/bin/python3 /usr/bin/python
+
 # Creating a virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
+# python3 -m venv .venv
+# source .venv/bin/activate
 
 # Install any packages
 pip install -r requirements.txt  
@@ -16,6 +18,7 @@ pip install -r requirements.txt
 venv-pack -o .venv.tar.gz
 
 # Collect data
+python3 prepare_data.py
 bash prepare_data.sh
 
 # Run the indexer

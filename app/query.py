@@ -14,21 +14,13 @@ sc = spark.sparkContext
 
 k1 = 1.5
 b = 0.75
+avgdl = 100  # 🔸 temporary placeholder
 
+# Connect to Cassandra
 cluster = Cluster(['cassandra-server'])
 session = cluster.connect('indexdb')
 
-doc_count = session.execute("SELECT COUNT(*) FROM documents").one()[0]
-
-doc_lengths = session.execute("SELECT doc_id, length, title FROM documents")
-doc_data = [(row.doc_id, row.length, row.title) for row in doc_lengths]
-doc_rdd = sc.parallelize(doc_data)  # (doc_id, length, title)
-
-avgdl = doc_rdd.map(lambda x: x[1]).mean()
-
-vocab = session.execute("SELECT term, idf FROM vocabulary")
-idf_map = {row.term: row.idf for row in vocab}
-
+# 🔸 Fetch tf entries from inverted_index
 query_terms_str = ", ".join(f"'{term}'" for term in query_terms)
 inv_rows = session.execute(f"""
     SELECT term, doc_id, tf FROM inverted_index
@@ -36,11 +28,24 @@ inv_rows = session.execute(f"""
 """)
 inv_rdd = sc.parallelize([(r.term, r.doc_id, r.tf) for r in inv_rows])
 
-tf_by_doc = inv_rdd.map(lambda x: (x[1], (x[0], x[2])))  # (doc_id, (term, tf))
-docs = doc_rdd.map(lambda x: (x[0], (x[1], x[2])))        # (doc_id, (length, title))
+# 🔸 Estimate doc lengths (fake with tf sum per doc)
+doc_lengths = (
+    inv_rdd
+    .map(lambda x: (x[1], x[2]))  # (doc_id, tf)
+    .reduceByKey(lambda a, b: a + b)  # sum tf = doc length
+    .collectAsMap()
+)
 
-joined = tf_by_doc.join(docs)
-# => (doc_id, ((term, tf), (length, title)))
+# 🔸 Compute placeholder IDF values (assume fixed)
+idf_map = {term: 1.5 for term in query_terms}  # placeholder
+
+# 🔸 Join tf with length
+tf_by_doc = inv_rdd.map(lambda x: (x[1], (x[0], x[2])))  # (doc_id, (term, tf))
+
+doc_info_rdd = sc.parallelize(doc_lengths.items())  # (doc_id, length)
+doc_info_rdd = doc_info_rdd.map(lambda x: (x[0], (x[1], f"Document_{x[0]}")))  # add title
+
+joined = tf_by_doc.join(doc_info_rdd)  # (doc_id, ((term, tf), (length, title)))
 
 def bm25_score(record):
     doc_id, ((term, tf), (dl, title)) = record
@@ -49,7 +54,6 @@ def bm25_score(record):
     return (doc_id, (title, score))
 
 scores = joined.map(bm25_score)
-
 agg_scores = scores.reduceByKey(lambda a, b: (a[0], a[1] + b[1]))  # (doc_id, (title, total_score))
 
 top10 = agg_scores.takeOrdered(10, key=lambda x: -x[1][1])

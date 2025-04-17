@@ -1,6 +1,9 @@
 services:
   cluster-master:
-    image: firasj/spark-docker-cluster
+    build:
+        context: .
+        dockerfile: Dockerfile
+    image: spark-cluster-custom
     container_name: cluster-master
     ports:
       - "8088:8088"
@@ -22,20 +25,17 @@ services:
     entrypoint: 
       - bash
       - /app/app.sh
-    environment:
-      - SPARK_DRIVER_MEMORY=512m
-      - SPARK_EXECUTOR_MEMORY=512m
     
   cluster-slave-1:
-    image: firasj/spark-docker-cluster
+    build:
+          context: .
+          dockerfile: Dockerfile
+    image: spark-cluster-custom
     container_name: cluster-slave-1
     networks:
       - spark-cluster
     hostname: cluster-slave-1
     tty: true
-    environment:
-      - SPARK_DRIVER_MEMORY=512m
-      - SPARK_EXECUTOR_MEMORY=512m
   # cluster-slave-2:
   #   image: firasj/spark-docker-cluster
   #   container_name: cluster-slave-2
@@ -52,10 +52,6 @@ services:
       - "7000:7000"
     networks:
       - spark-cluster
-    environment:
-      MAX_HEAP_SIZE: 256M
-      HEAP_NEWSIZE: 128M
-    
 
 networks:
   spark-cluster:
